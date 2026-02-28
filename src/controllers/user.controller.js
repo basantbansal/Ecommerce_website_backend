@@ -1,88 +1,4 @@
-Hello Everyone its me basant bansal , its my first project towards backend <- idk wha i tryna sa maan uugghh 
-
-
-
-explaination of everything i have build so far ->
-
-short forms - idk = which i dont know what it means
-
--front will start and will run on localhost:5173 , it will show a page of "/" or "/home".
--backend will also start and will run on localhost:3000 , backend is nothing but a way to contact with the database meaning the logical part is written there like how to manage the data flow between the frontend and database and many more stuff like tokens and all , and also to keep the database secure .
-
--when i start the backend - the first file runs is index.js in which firstly it will import the .env so that it can be access by all , also connect to database( which i dont know what it means ? its like waking the database up? like bro wakeup i have some work for you to do now ... something like that) , also i have imported the app from app.js which is nothing but an instance of express , and express is nothing but a thing (yeah i dont know what it is really) that controls the connection between frontend and backend , its like the wire connecting both , ok so app is express and we say to app  to lisen anything that comes from frontend to this process.env.port at backend . i have a little confusion here is express the whole server or is server containing the express thing. i think express is a person (whole server you can say) is sitting at process.env.port , when someone from frontend throws something at that port our person cathes it.i think thats enough of index.js btw its like the react vite frontend where index.js has context(Database) and also we wrap and start the App there also , so everything is fine and i can relate till here.
-
--now comes the app.js - in app i can see that we define a const app as express instance . like we give the person/express a name which is app , there app is saying to cors that allow everyrequest that comes form process.env.cross origin and credentials is true ( idk ) , then app has these -
-app.use(express.json({limit:"16kb"})) - limit every json file (idk) comes from frontend to 16kb
-app.use(express.urlencoded({extended:true,limit:"16kb"})) (idx)
-app.use(express.static("public")) - if you want to save anything that frontend send , please save it to the public/temp/.gitkeep
-then -
-// routes declaration
-app.use("/api/v1/users", userRoute) - when you see "/api/v1/users" in the url call userRoute that was imported above 
-thats it for app.js , also its similar to frontend App where we defien all the routes to pages , like if this route then this page but some of the things are more here. 
-
--now lets talk about the user.route.js , which is called whenever the url has /api/v1/users as starting , then after going here , its like having so many routes that user can choose , like register,login,logout,refresh-token(idk) . in this we define a route variable which is instance of Route() (which helps in routing like in frontend there is also a buildin Route similar to this ) , now route does - 
-router.route("/register").post( - when a user cant to register send him to registerUser and also before sending everything take out the avatar and coverImage data because it cant be send as json or text in database(mongoDB) , so 
-    upload.fields([             - upload function  is there  to upload these to public/temp/.gitkeep which is handled by multer ( why so many new things , cant express do this bruh )
-        {
-            name: "avatar",
-            maxCount: 1
-        }, 
-        {
-            name: "coverImage",
-            maxCount: 1
-        }
-    ]),
-    registerUser
-    )
-
-router.route("/login").post(loginUser) - same idea
-//secured routes
-router.route("/logout").post(verifyJWT,  logoutUser) - same idea
-router.route("/refresh-token").post(refreshAccessToken) - (idk) also why are these two secured ? i have some idea that they are i think work only when user is logged in so thats why . also to mention i dont really get what a cookie is .
-
-- in multer why are we giving path as public/temp and not public/temp/.gitkeep like isn't .gitkeep for storing ahh ? is it for storing something related to text right but what ....
-
-- we also made a cloudinary.js in utils which uploads the files from the controller(where whole logic is written) ? not sure but cant those directly be stored in cloudinary during the multer phase lol i might be sooo wrong and i think i am asking a illogical questions.
-
-- also in utils we made three files - ApiError.js which i think is run when ever we face a error to give a standard warning error which is same everytime so that we can understand , also ApiResponse which gives response hmm same as ApiError and then asyncHandler which wraps the async functions so that is something goes wrong it handles it (idx) , i dont have much clearity about these also . also what is this api like is it data , then what is custom api or fast api or api endpoints ?? , confusing api lol . also what is the meaning os Promise in async handler 
-
-- now lets come to models , lets take about our user.models.js , i think models is nothing but a way to connect with the database and also it defines what will the particular thing like user here will look like in the database it is known as schema . and when it comes to making contact with the database mongoose comes into the picture . mongoose helps to make the Schema User a way to connect with the database . also it contains some methods (idk why like cant methods be written inside the controller where all the logic is handled ) now comes to generateAccessToken and generateRefreshToken . can you please make me understand them line by line . like i know what acess token and refresh token means but how are they being generated and stored where and how are they checked (idk ) i think this is related to cookies also so yeah please focus on this one very deply . 
-
-- now comes the same thing which i dont understand even a bit - auth.middleware.js - 
-import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import jwt from "jsonwebtoken"
-import { User } from "../models/user.models.js";
-
-export const verifyJWT = asyncHandler(async(req, _, next) => {
-    try {
-        const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "")
-        
-        // console.log(token);
-        if (!token) {
-            throw new ApiError(401, "Unauthorized request")
-        }
-    
-        const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET)
-    
-        const user = await User.findById(decodedToken?._id).select("-password -refreshToken")
-    
-        if (!user) {
-            
-            throw new ApiError(401, "Invalid Access Token")
-        }
-    
-        req.user = user;
-        next()
-    } catch (error) {
-        throw new ApiError(401, error?.message || "Invalid access token")
-    }
-    
-})
-
-which export the verifyJWT which i think works like it send the data of user in the request (idk how it do that) we use it at before calling logging out such that req in logout will have info that who the user is . 
-
-- now comes the user.controller.js our last thing i think  i have studied some stuff myself please refine it -import { asyncHandler } from "../utils/asyncHandler.js";
 import {ApiError} from "../utils/ApiError.js"
 import { User} from "../models/user.models.js"
 import {uploadOnCloudinary} from "../utils/cloudinary.js"
@@ -282,7 +198,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
             httpOnly: true,
             secure: true
         }
-    
+
         const {accessToken, newRefreshToken} = await generateAccessAndRefereshTokens(user._id)
     
         return res
