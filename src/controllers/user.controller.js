@@ -126,7 +126,8 @@ const loginUser = asyncHandler(async (req, res) =>{
 
     const options = { // these options are used to configure the cookies that will be sent back to the client. The httpOnly option is set to true, which means that the cookies cannot be accessed or modified by client-side JavaScript, providing an additional layer of security against cross-site scripting (XSS) attacks. The secure option is also set to true, which means that the cookies will only be sent over HTTPS connections, ensuring that the tokens are transmitted securely and reducing the risk of interception by malicious actors. These options help to enhance the security of the authentication tokens stored in the cookies.
         httpOnly: true,
-        secure: true
+        secure: true,
+        sameSite: "none"
     }
 
     return res
@@ -160,7 +161,9 @@ const logoutUser = asyncHandler(async(req, res) => {
 
     const options = {
         httpOnly: true,
-        secure: true
+        secure: true,
+            sameSite: "none"
+
     }
 
     return res
@@ -196,7 +199,8 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     
         const options = {
             httpOnly: true,
-            secure: true
+            secure: true,
+            sameSite: "none"
         }
 
         const {accessToken, newRefreshToken} = await generateAccessAndRefereshTokens(user._id)
