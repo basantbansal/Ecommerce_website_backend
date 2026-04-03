@@ -81,7 +81,7 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 
     return res.status(201).json( // this line is sending a JSON response back to the client with a status code of 201 (Created) and a body that contains an instance of ApiResponse. The ApiResponse object is constructed with a status code of 200, the created user data (excluding the password and refresh token), and a success message indicating that the user was registered successfully. This response structure provides a standardized format for API responses, making it easier for clients to handle and interpret the results of their requests.
-        new ApiResponse(200, createdUser, "User registered Successfully")
+        new ApiResponse(200, createdUser, "User registered Successfully") // here status is 200 and above is 201 its different because 201 is used when a new resource is created successfully, while 200 is a general success status code that can be used for various successful operations. In this case, since we are creating a new user, it would be more appropriate to use 201 to indicate that a new resource (user) has been created successfully. However, the choice of status code can depend on the specific API design and conventions being followed.
     ) 
 })
 
