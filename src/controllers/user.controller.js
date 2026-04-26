@@ -8,11 +8,16 @@ import jwt from "jsonwebtoken"
 // about multer , uploadOnCloudinart ->
 // Client → Multer (route) → saves to temp/ → controller gets local path → uploadOnCloudinary → Cloudinary → URL saved to DB
 
-const getCookieOptions = () => ({ // 
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
-})
+const getCookieOptions = (req) => { // 
+    const isHttpsFrontend = req.headers.origin?.startsWith("https://")
+    const isProduction = process.env.NODE_ENV === "production"
+
+    return {
+        httpOnly: true,
+        secure: isProduction || isHttpsFrontend,
+        sameSite: isProduction || isHttpsFrontend ? "none" : "lax"
+    }
+}
 
 const generateAccessAndRefereshTokens = async(userId) =>{ // this function is responsible for generating both access and refresh tokens for a user. It takes the user's ID as an argument, retrieves the user from the database, generates an access token and a refresh token using the methods defined in the user model, and then saves the refresh token in the user's document in the database. Finally, it returns an object containing both the access token and the refresh token. This function is typically used during the login process to provide the client with the necessary tokens for authentication and session management.
     try {
@@ -132,7 +137,7 @@ const loginUser = asyncHandler(async (req, res) =>{
 
     const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
 
-    const options = getCookieOptions() // these options are used to configure the cookies that will be sent back to the client. The httpOnly option is set to true, which means that the cookies cannot be accessed or modified by client-side JavaScript, providing an additional layer of security against cross-site scripting (XSS) attacks. The secure option is also set to true, which means that the cookies will only be sent over HTTPS connections, ensuring that the tokens are transmitted securely and reducing the risk of interception by malicious actors. These options help to enhance the security of the authentication tokens stored in the cookies.
+    const options = getCookieOptions(req) // these options are used to configure the cookies that will be sent back to the client. The httpOnly option is set to true, which means that the cookies cannot be accessed or modified by client-side JavaScript, providing an additional layer of security against cross-site scripting (XSS) attacks. The secure option is also set to true, which means that the cookies will only be sent over HTTPS connections, ensuring that the tokens are transmitted securely and reducing the risk of interception by malicious actors. These options help to enhance the security of the authentication tokens stored in the cookies.
 
     return res
     .status(200) // simple meaning of cookie is that it is a small piece of data that the server sends to the client's web browser, which then stores it and sends it back with subsequent requests to the same server. In this context, the cookie is being used to store the access token and refresh token generated for the user upon successful login. By setting these tokens in cookies, the server can maintain the user's authenticated session across multiple requests without requiring the client to include the tokens in the request headers manually. The options provided ensure that these cookies are secure and not accessible via client-side scripts, enhancing the overall security of the authentication mechanism. these cookies are stored at client side's browser's cookie storage , and what if someone hacks this cookie? then they can easily get access to user's account, so to prevent this we have set httpOnly to true and secure to true, which means that these cookies cannot be accessed or modified by client-side JavaScript and will only be sent over HTTPS connections, providing an additional layer of security against potential attacks.can we see the cookie storage in browser? yes we can see the cookie storage in browser's developer tools, under the "Application" tab (in Chrome) or "Storage" tab (in Firefox). There, you can find a section for "Cookies" where you can view all the cookies stored by the website, including their names, values, expiration dates, and other attributes. However, if the cookies are set with the httpOnly flag, they will not be accessible via client-side JavaScript and will not be visible in the "Cookies" section of the developer tools. This is a security measure to prevent malicious scripts from accessing sensitive information stored in cookies.
@@ -163,7 +168,7 @@ const logoutUser = asyncHandler(async(req, res) => {
         }
     )
 
-    const options = getCookieOptions()
+    const options = getCookieOptions(req)
 
     return res
     .status(200)
@@ -196,7 +201,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
             
         }
     
-        const options = getCookieOptions()
+        const options = getCookieOptions(req)
 
         const {accessToken, refreshToken: newRefreshToken} = await generateAccessAndRefereshTokens(user._id)
     

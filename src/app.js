@@ -8,14 +8,31 @@ import orderRoute from "./routes/order.route.js";
 
 const app = express();
 
-const allowedOrigins = [
+const allowedOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const defaultAllowedOrigins = [
   "http://localhost:3000",
+  "http://localhost:5173",
   "https://e-commerce-website-ten-dusky.vercel.app",
   "https://e-commerce-website-9jgzblrxv-basantbansals-projects.vercel.app"
 ];
 
 app.use(cors({
-  origin: allowedOrigins,
+  origin: (origin, callback) => {
+    if (
+      !origin ||
+      defaultAllowedOrigins.includes(origin) ||
+      allowedOrigins.includes(origin) ||
+      /^https:\/\/e-commerce-website-[a-z0-9-]+\.vercel\.app$/.test(origin)
+    ) {
+      return callback(null, true)
+    }
+
+    return callback(new Error("Not allowed by CORS"))
+  },
   credentials: true
 }));
 
