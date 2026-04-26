@@ -3,11 +3,15 @@ import { DB_NAME } from "../constants.js";
 
 const connectDB = async () => {
   try {
-    const mongoUri = (process.env.MONGODB_URI || process.env.MONGO_URL || "")
-      .trim()
-      .replace(/^["']|["']$/g, "");
+    const mongoUris = [process.env.MONGODB_URI, process.env.MONGO_URL]
+      .filter(Boolean)
+      .map((uri) => uri.trim().replace(/^["']|["']$/g, ""));
 
-    if (!mongoUri.startsWith("mongodb://") && !mongoUri.startsWith("mongodb+srv://")) {
+    const mongoUri = mongoUris.find(
+      (uri) => uri.startsWith("mongodb://") || uri.startsWith("mongodb+srv://")
+    );
+
+    if (!mongoUri) {
       throw new Error("MONGODB_URI or MONGO_URL must start with mongodb:// or mongodb+srv://")
     }
 
