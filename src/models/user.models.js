@@ -16,7 +16,7 @@ const userSchema = new Schema(
             type: String,
             required: true,
             unique: true,
-            lowecase: true,
+            lowercase: true,
             trim: true, 
         },
         fullName: {
@@ -32,12 +32,11 @@ const userSchema = new Schema(
         coverImage: {
             type: String, // cloudinary url
         },
-        watchHistory: [
-            {
-                type: Schema.Types.ObjectId,
-                ref: "Video"
-            }
-        ],
+        role: {
+            type: String,
+            enum: ["customer", "seller", "admin"],
+            default: "customer",
+        },
         password: {
             type: String,
             required: [true, 'Password is required']
@@ -52,7 +51,7 @@ const userSchema = new Schema(
     }
 )
 
-userSchema.pre("save", async function () { // whenever someone edits 
+userSchema.pre("save", async function () { // what it does is that 
     if(!this.isModified("password")) return;
     this.password = await bcrypt.hash(this.password, 10)
 })

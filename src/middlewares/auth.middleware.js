@@ -7,11 +7,7 @@ export const verifyJWT = asyncHandler(async(req, _, next) => { // this middlewar
     try {
         
         const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "") // this line is trying to retrieve the JWT token from the incoming request. It first checks if the token is present in the cookies (specifically in a cookie named "accessToken"). If it is not found in the cookies, it then looks for the token in the Authorization header of the request. The expected format of the Authorization header is "Bearer <token>", so it uses the replace method to remove the "Bearer " prefix and extract just the token value. This allows the middleware to support both cookie-based and header-based authentication methods for retrieving the JWT token from the client request.
-        
-        // console.log(token);
-        console.log("cookies:", req.cookies)  // add this
-        console.log("token:", token)           // add this
-        
+
         if (!token) {
             throw new ApiError(401, "Unauthorized request")
         }
@@ -32,3 +28,16 @@ export const verifyJWT = asyncHandler(async(req, _, next) => { // this middlewar
     }
     
 })
+
+export const authorizeRoles = (...allowedRoles) =>
+    asyncHandler(async (req, _, next) => {
+        if (!req.user) {
+            throw new ApiError(401, "Unauthorized request")
+        }
+
+        if (!allowedRoles.includes(req.user.role)) {
+            throw new ApiError(403, "You are not allowed to perform this action")
+        }
+
+        next()
+    })

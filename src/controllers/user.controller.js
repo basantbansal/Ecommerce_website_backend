@@ -4,7 +4,15 @@ import { User} from "../models/user.models.js"
 import {uploadOnCloudinary} from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken"
-import mongoose from "mongoose";
+
+// about multer , uploadOnCloudinart ->
+// Client → Multer (route) → saves to temp/ → controller gets local path → uploadOnCloudinary → Cloudinary → URL saved to DB
+
+const getCookieOptions = () => ({ // 
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+})
 
 const generateAccessAndRefereshTokens = async(userId) =>{ // this function is responsible for generating both access and refresh tokens for a user. It takes the user's ID as an argument, retrieves the user from the database, generates an access token and a refresh token using the methods defined in the user model, and then saves the refresh token in the user's document in the database. Finally, it returns an object containing both the access token and the refresh token. This function is typically used during the login process to provide the client with the necessary tokens for authentication and session management.
     try {
@@ -42,7 +50,7 @@ const registerUser = asyncHandler(async (req, res) => {
     }
     //console.log(req.files);
 
-    const avatarLocalPath = req.files?.avatar[0]?.path;
+    const avatarLocalPath = req.files?.avatar?.[0]?.path;
     //const coverImageLocalPath = req.files?.coverImage[0]?.path;
 
     let coverImageLocalPath;
@@ -81,7 +89,7 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 
     return res.status(201).json( // this line is sending a JSON response back to the client with a status code of 201 (Created) and a body that contains an instance of ApiResponse. The ApiResponse object is constructed with a status code of 200, the created user data (excluding the password and refresh token), and a success message indicating that the user was registered successfully. This response structure provides a standardized format for API responses, making it easier for clients to handle and interpret the results of their requests.
-        new ApiResponse(200, createdUser, "User registered Successfully") // here status is 200 and above is 201 its different because 201 is used when a new resource is created successfully, while 200 is a general success status code that can be used for various successful operations. In this case, since we are creating a new user, it would be more appropriate to use 201 to indicate that a new resource (user) has been created successfully. However, the choice of status code can depend on the specific API design and conventions being followed.
+        new ApiResponse(201, createdUser, "User registered Successfully") // here status is 200 and above is 201 its different because 201 is used when a new resource is created successfully, while 200 is a general success status code that can be used for various successful operations. In this case, since we are creating a new user, it would be more appropriate to use 201 to indicate that a new resource (user) has been created successfully. However, the choice of status code can depend on the specific API design and conventions being followed.
     ) 
 })
 
@@ -93,10 +101,10 @@ const loginUser = asyncHandler(async (req, res) =>{
     //access and referesh token
     //send cookie
 
-    const {email, username, password} = req.body
-    console.log(email);
+    const {email, username, password, loginId} = req.body
+    const identifier = (loginId || email || username || "").trim().toLowerCase()
 
-    if (!username && !email) {
+    if (!identifier) {
         throw new ApiError(400, "username or email is required")
     }
     
@@ -107,7 +115,7 @@ const loginUser = asyncHandler(async (req, res) =>{
     // }
 
     const user = await User.findOne({
-        $or: [{username}, {email}]
+        $or: [{username: identifier}, {email: identifier}]
     })
 
     if (!user) {
@@ -124,11 +132,7 @@ const loginUser = asyncHandler(async (req, res) =>{
 
     const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
 
-    const options = { // these options are used to configure the cookies that will be sent back to the client. The httpOnly option is set to true, which means that the cookies cannot be accessed or modified by client-side JavaScript, providing an additional layer of security against cross-site scripting (XSS) attacks. The secure option is also set to true, which means that the cookies will only be sent over HTTPS connections, ensuring that the tokens are transmitted securely and reducing the risk of interception by malicious actors. These options help to enhance the security of the authentication tokens stored in the cookies.
-        httpOnly: true,
-        secure: true,
-        sameSite: "none"
-    }
+    const options = getCookieOptions() // these options are used to configure the cookies that will be sent back to the client. The httpOnly option is set to true, which means that the cookies cannot be accessed or modified by client-side JavaScript, providing an additional layer of security against cross-site scripting (XSS) attacks. The secure option is also set to true, which means that the cookies will only be sent over HTTPS connections, ensuring that the tokens are transmitted securely and reducing the risk of interception by malicious actors. These options help to enhance the security of the authentication tokens stored in the cookies.
 
     return res
     .status(200) // simple meaning of cookie is that it is a small piece of data that the server sends to the client's web browser, which then stores it and sends it back with subsequent requests to the same server. In this context, the cookie is being used to store the access token and refresh token generated for the user upon successful login. By setting these tokens in cookies, the server can maintain the user's authenticated session across multiple requests without requiring the client to include the tokens in the request headers manually. The options provided ensure that these cookies are secure and not accessible via client-side scripts, enhancing the overall security of the authentication mechanism. these cookies are stored at client side's browser's cookie storage , and what if someone hacks this cookie? then they can easily get access to user's account, so to prevent this we have set httpOnly to true and secure to true, which means that these cookies cannot be accessed or modified by client-side JavaScript and will only be sent over HTTPS connections, providing an additional layer of security against potential attacks.can we see the cookie storage in browser? yes we can see the cookie storage in browser's developer tools, under the "Application" tab (in Chrome) or "Storage" tab (in Firefox). There, you can find a section for "Cookies" where you can view all the cookies stored by the website, including their names, values, expiration dates, and other attributes. However, if the cookies are set with the httpOnly flag, they will not be accessible via client-side JavaScript and will not be visible in the "Cookies" section of the developer tools. This is a security measure to prevent malicious scripts from accessing sensitive information stored in cookies.
@@ -159,12 +163,7 @@ const logoutUser = asyncHandler(async(req, res) => {
         }
     )
 
-    const options = {
-        httpOnly: true,
-        secure: true,
-            sameSite: "none"
-
-    }
+    const options = getCookieOptions()
 
     return res
     .status(200)
@@ -197,13 +196,9 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
             
         }
     
-        const options = {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none"
-        }
+        const options = getCookieOptions()
 
-        const {accessToken, newRefreshToken} = await generateAccessAndRefereshTokens(user._id)
+        const {accessToken, refreshToken: newRefreshToken} = await generateAccessAndRefereshTokens(user._id)
     
         return res
         .status(200)
@@ -222,5 +217,32 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 })
 
+const getCurrentUser = asyncHandler(async (req, res) => {
+    return res
+    .status(200)
+    .json(new ApiResponse(200, req.user, "Current user fetched successfully"))
+})
 
-export { registerUser, loginUser, logoutUser, refreshAccessToken }
+const becomeSeller = asyncHandler(async (req, res) => {
+    const updatedUser = await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set: {
+                role: "seller"
+            }
+        },
+        {
+            new: true
+        }
+    ).select("-password -refreshToken")
+
+    if (!updatedUser) {
+        throw new ApiError(404, "User not found")
+    }
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200, updatedUser, "Seller access enabled successfully"))
+})
+
+export { becomeSeller, getCurrentUser, loginUser, logoutUser, refreshAccessToken, registerUser }
