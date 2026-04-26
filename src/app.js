@@ -3,8 +3,8 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import userRoute from "./routes/user.route.js";
 import productRoute from "./routes/product.route.js";
-// import cartRoute from "./routes/cart.route.js";
-// import orderRoute from "./routes/order.route.js";
+import cartRoute from "./routes/cart.route.js";
+import orderRoute from "./routes/order.route.js";
 
 const app = express();
 
@@ -26,8 +26,8 @@ app.use(express.static("public"));
 // routes declaration
 app.use("/api/v1/users", userRoute);
 app.use("/api/v1/products", productRoute);
-// app.use("/api/v1/cart", cartRoute);
-// app.use("/api/v1/orders", orderRoute);
+app.use("/api/v1/cart", cartRoute);
+app.use("/api/v1/orders", orderRoute);
 
 app.use((err, _, res, __) => {
   const statusCode = err?.statusCode || 500;
