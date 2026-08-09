@@ -1,10 +1,12 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import mongoose from "mongoose";
 import userRoute from "./routes/user.route.js";
 import productRoute from "./routes/product.route.js";
 import cartRoute from "./routes/cart.route.js";
 import orderRoute from "./routes/order.route.js";
+import paymentRoute from "./routes/payment.route.js";
 
 const app = express();
 
@@ -42,13 +44,24 @@ app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(express.static("public"));
 
-// route import
+app.get("/api/v1/health", (_, res) => {
+  const databaseConnected = mongoose.connection.readyState === 1;
+
+  res.set("Cache-Control", "no-store");
+  return res.status(databaseConnected ? 200 : 503).json({
+    success: databaseConnected,
+    status: databaseConnected ? "ok" : "unavailable",
+    database: databaseConnected ? "connected" : "disconnected",
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // routes declaration
 app.use("/api/v1/users", userRoute);
 app.use("/api/v1/products", productRoute);
 app.use("/api/v1/cart", cartRoute);
 app.use("/api/v1/orders", orderRoute);
+app.use("/api/v1/payments", paymentRoute);
 
 app.use((err, _, res, __) => {
   const statusCode = err?.statusCode || 500;

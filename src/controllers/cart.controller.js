@@ -44,18 +44,32 @@ const addItemToCart = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Product not found")
     }
 
-    const cart = await getOrCreateCart(req.user._id)
-    const existingItem = cart.items.find(
-        (item) => item.product.toString() === productId
+    if (product.stock < 1) {
+        throw new ApiError(400, "Product is out of stock")
+    }
+
+    await getOrCreateCart(req.user._id)
+
+    let cart = await Cart.findOneAndUpdate(
+        {
+            user: req.user._id,
+            "items.product": { $ne: productId }
+        },
+        {
+            $push: {
+                items: {
+                    product: productId,
+                    quantity: 1
+                }
+            }
+        },
+        {
+            new: true
+        }
     )
 
-    if (!existingItem) {
-        cart.items.push({
-            product: productId,
-            quantity: 1
-        })
-
-        await cart.save()
+    if (!cart) {
+        cart = await Cart.findOne({ user: req.user._id })
     }
 
     await populateCart(cart)
@@ -84,6 +98,18 @@ const updateCartItemQuantity = asyncHandler(async (req, res) => {
 
     if (!item) {
         throw new ApiError(404, "Item not found in cart")
+    }
+
+    if (Number(change) === 1) {
+        const product = await Product.findById(productId)
+
+        if (!product) {
+            throw new ApiError(404, "Product not found")
+        }
+
+        if (item.quantity >= product.stock) {
+            throw new ApiError(400, "No more stock available for this product")
+        }
     }
 
     item.quantity += Number(change)

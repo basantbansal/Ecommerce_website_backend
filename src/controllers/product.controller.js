@@ -1,9 +1,17 @@
 import axios from "axios";
+import mongoose from "mongoose";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { Product } from "../models/product.models.js";
+import { Cart } from "../models/cart.models.js";
 import { ApiError } from "../utils/ApiError.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+
+const ensureAdmin = (user) => {
+    if (user.role !== "admin") {
+        throw new ApiError(403, "Only admins can perform this action")
+    }
+}
 
 const storeProducts = asyncHandler(async (req, res) => {
     if (req.user.role !== "seller") {
@@ -47,9 +55,7 @@ const storeProducts = asyncHandler(async (req, res) => {
 })
 
 const importDummyProducts = asyncHandler(async (req, res) => {
-    if (req.user.role !== "admin") {
-        throw new ApiError(403, "Only admins can import products")
-    }
+    ensureAdmin(req.user)
 
     const response = await axios.get("https://dummyjson.com/products")
     const dummyProducts = response.data?.products || []
@@ -113,4 +119,68 @@ const getProductById = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, product, "Product fetched successfully"))
 })
 
-export { storeProducts, getProducts, getProductById, importDummyProducts }
+const updateProductStock = asyncHandler(async (req, res) => {
+    ensureAdmin(req.user)
+
+    if (!mongoose.isValidObjectId(req.params.productId)) {
+        throw new ApiError(400, "Valid product id is required")
+    }
+
+    const stock = Number(req.body?.stock)
+
+    if (!Number.isInteger(stock) || stock < 0) {
+        throw new ApiError(400, "Stock must be a non-negative whole number")
+    }
+
+    const product = await Product.findById(req.params.productId)
+
+    if (!product) {
+        throw new ApiError(404, "Product not found")
+    }
+
+    product.stock = stock
+    product.availabilityStatus = stock > 0 ? "In Stock" : "Out of Stock"
+    await product.save()
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200, product, "Product stock updated successfully"))
+})
+
+const deleteProduct = asyncHandler(async (req, res) => {
+    ensureAdmin(req.user)
+
+    if (!mongoose.isValidObjectId(req.params.productId)) {
+        throw new ApiError(400, "Valid product id is required")
+    }
+
+    const product = await Product.findByIdAndDelete(req.params.productId)
+
+    if (!product) {
+        throw new ApiError(404, "Product not found")
+    }
+
+    await Cart.updateMany(
+        {},
+        {
+            $pull: {
+                items: {
+                    product: product._id
+                }
+            }
+        }
+    )
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200, product, "Product deleted successfully"))
+})
+
+export {
+    storeProducts,
+    getProducts,
+    getProductById,
+    importDummyProducts,
+    updateProductStock,
+    deleteProduct
+}

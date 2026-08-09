@@ -29,10 +29,19 @@ const orderSchema = new Schema(
             type: Number,
             required: true
         },
+        payment: {
+            type: Schema.Types.ObjectId,
+            ref: "Payment"
+        },
+        source: {
+            type: String,
+            enum: ["cart", "buy_now"],
+            default: "cart"
+        },
         status: {
             type: String,
-            enum: ["placed", "cancelled"],
-            default: "placed"
+            enum: ["pending_payment", "paid", "payment_failed", "cancelled"],
+            default: "pending_payment"
         }
     },
     {

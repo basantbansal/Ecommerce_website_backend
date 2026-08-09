@@ -6,6 +6,6 @@ const router = Router()
 
 router.use(verifyJWT)
 
-router.route("/").get(getOrders).post(createOrder)
+router.route("/").get(getOrders).post(createOrder) 
 
 export default router
