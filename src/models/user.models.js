@@ -1,6 +1,7 @@
 import mongoose , {Schema} from "mongoose";
 import jwt from "jsonwebtoken"
 import bcrypt from "bcrypt"
+import crypto from "crypto"
 
 const userSchema = new Schema(
     {
@@ -43,7 +44,15 @@ const userSchema = new Schema(
         },
         refreshToken: {
             type: String
-        }
+        },
+        emailVerified: {
+            type: Boolean,
+            default: false
+        },
+        emailVerificationToken: String,
+        emailVerificationExpires: Date,
+        passwordResetToken: String,
+        passwordResetExpires: Date
 
     },
     {
@@ -60,6 +69,20 @@ userSchema.pre("save", async function () { // what it does is that
 
 userSchema.methods.isPasswordCorrect = async function(password){ // compare the provided password with the hashed password stored in the database 
     return await bcrypt.compare(password, this.password)
+}
+
+userSchema.methods.createEmailToken = function () {
+    const token = crypto.randomBytes(32).toString("hex")
+    this.emailVerificationToken = crypto.createHash("sha256").update(token).digest("hex")
+    this.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000) // time is in seconds is 
+    return token
+}
+
+userSchema.methods.createPasswordResetToken = function () {
+    const token = crypto.randomBytes(32).toString("hex")
+    this.passwordResetToken = crypto.createHash("sha256").update(token).digest("hex")
+    this.passwordResetExpires = new Date(Date.now() + 15 * 60 * 1000)
+    return token
 }
 
 

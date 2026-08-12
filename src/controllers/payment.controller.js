@@ -57,7 +57,7 @@ const completePaidOrder = async (payment, order) => {
                 $inc: { stock: -item.quantity }
             },
             {
-                new: true
+                returnDocument: "after"
             }
         )
 

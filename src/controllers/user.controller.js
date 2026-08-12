@@ -4,6 +4,32 @@ import { User} from "../models/user.models.js"
 import {uploadOnCloudinary} from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken"
+import crypto from "crypto"
+import { sendEmail } from "../utils/email.js";
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const isStrongPassword = (password) =>
+    typeof password === "string" && password.length >= 8 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /\d/.test(password)
+
+const frontendUrl = () => {
+    const defaultUrl = process.env.NODE_ENV === "production"
+        ? "https://e-commerce-website-ten-dusky.vercel.app"
+        : "http://localhost:3000"
+
+    return (process.env.FRONTEND_URL || defaultUrl).replace(/\/$/, "")
+}
+
+const sendVerificationEmail = async (user) => {
+    const token = user.createEmailToken()
+    await user.save({ validateBeforeSave: false })
+    const url = `${frontendUrl()}/verify-email?token=${token}`
+    await sendEmail({
+        to: user.email,
+        subject: "Verify your Amazing Store email",
+        text: `Verify your email by opening this link: ${url}`,
+        html: `<p>Welcome to Amazing Store.</p><p><a href="${url}">Verify your email address</a></p><p>This link expires in 24 hours.</p>`
+    })
+}
 
 // about multer , uploadOnCloudinart ->
 // Client → Multer (route) → saves to temp/ → controller gets local path → uploadOnCloudinary → Cloudinary → URL saved to DB
@@ -44,6 +70,14 @@ const registerUser = asyncHandler(async (req, res) => {
         [fullName, email, username, password].some((field) => field?.trim() === "")
     ) {
         throw new ApiError(400, "All fields are required")
+    }
+
+    if (!emailPattern.test(email.trim())) {
+        throw new ApiError(400, "A valid email address is required")
+    }
+
+    if (!isStrongPassword(password)) {
+        throw new ApiError(400, "Password must be at least 8 characters and include uppercase, lowercase, and a number")
     }
 
     const existedUser = await User.findOne({
@@ -93,6 +127,12 @@ const registerUser = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Something went wrong while registering the user")
     }
 
+    try {
+        await sendVerificationEmail(user)
+    } catch (error) {
+        throw new ApiError(503, "Account created, but we could not send the verification email. Please try again shortly.")
+    }
+
     return res.status(201).json( // this line is sending a JSON response back to the client with a status code of 201 (Created) and a body that contains an instance of ApiResponse. The ApiResponse object is constructed with a status code of 200, the created user data (excluding the password and refresh token), and a success message indicating that the user was registered successfully. This response structure provides a standardized format for API responses, making it easier for clients to handle and interpret the results of their requests.
         new ApiResponse(201, createdUser, "User registered Successfully") // here status is 200 and above is 201 its different because 201 is used when a new resource is created successfully, while 200 is a general success status code that can be used for various successful operations. In this case, since we are creating a new user, it would be more appropriate to use 201 to indicate that a new resource (user) has been created successfully. However, the choice of status code can depend on the specific API design and conventions being followed.
     ) 
@@ -133,6 +173,10 @@ const loginUser = asyncHandler(async (req, res) =>{
     throw new ApiError(401, "Invalid user credentials")
     }
 
+   if (!user.emailVerified) {
+        throw new ApiError(403, "Please verify your email before logging in")
+   }
+
    const {accessToken, refreshToken} = await generateAccessAndRefereshTokens(user._id)
 
     const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
@@ -164,7 +208,7 @@ const logoutUser = asyncHandler(async(req, res) => {
             }
         },
         {
-            new: true
+            returnDocument: "after"
         }
     )
 
@@ -237,7 +281,7 @@ const becomeSeller = asyncHandler(async (req, res) => {
             }
         },
         {
-            new: true
+            returnDocument: "after"
         }
     ).select("-password -refreshToken")
 
@@ -250,4 +294,114 @@ const becomeSeller = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, updatedUser, "Seller access enabled successfully"))
 })
 
-export { becomeSeller, getCurrentUser, loginUser, logoutUser, refreshAccessToken, registerUser }
+const verifyEmail = asyncHandler(async (req, res) => {
+    const { token } = req.body
+    if (!token) throw new ApiError(400, "Verification token is required")
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex")
+    const user = await User.findOne({
+        emailVerificationToken: hashedToken,
+        emailVerificationExpires: { $gt: new Date() }
+    })
+
+    if (!user) throw new ApiError(400, "This verification link is invalid or has expired")
+
+    user.emailVerified = true
+    user.emailVerificationToken = undefined
+    user.emailVerificationExpires = undefined
+    await user.save({ validateBeforeSave: false })
+    return res.status(200).json(new ApiResponse(200, {}, "Email verified successfully. You can now log in."))
+})
+
+const resendVerificationEmail = asyncHandler(async (req, res) => {
+    const { email } = req.body
+    const message = "If that account needs verification, a new link has been sent."
+    if (!email || !emailPattern.test(email.trim())) {
+        return res.status(200).json(new ApiResponse(200, {}, message))
+    }
+
+    const user = await User.findOne({ email: email.trim().toLowerCase() })
+    if (user && !user.emailVerified) {
+        await sendVerificationEmail(user)
+    }
+    return res.status(200).json(new ApiResponse(200, {}, message))
+})
+
+const forgotPassword = asyncHandler(async (req, res) => {
+    const { email } = req.body
+    const message = "If an account exists for that email, a password-reset link has been sent."
+    if (!email || !emailPattern.test(email.trim())) {
+        return res.status(200).json(new ApiResponse(200, {}, message))
+    }
+
+    const user = await User.findOne({ email: email.trim().toLowerCase() })
+    if (user?.emailVerified) {
+        const token = user.createPasswordResetToken()
+        await user.save({ validateBeforeSave: false })
+        const url = `${frontendUrl()}/reset-password?token=${token}`
+        await sendEmail({
+            to: user.email,
+            subject: "Reset your Amazing Store password",
+            text: `Reset your password by opening this link: ${url}`,
+            html: `<p>We received a request to reset your password.</p><p><a href="${url}">Reset your password</a></p><p>This link expires in 15 minutes.</p>`
+        })
+    }
+    return res.status(200).json(new ApiResponse(200, {}, message))
+})
+
+const resetPassword = asyncHandler(async (req, res) => {
+    const { token, password } = req.body
+    if (!token || !isStrongPassword(password)) {
+        throw new ApiError(400, "Provide a valid reset token and a strong password")
+    }
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex")
+    const user = await User.findOne({
+        passwordResetToken: hashedToken,
+        passwordResetExpires: { $gt: new Date() }
+    })
+    if (!user) throw new ApiError(400, "This password-reset link is invalid or has expired")
+
+    user.password = password
+    user.passwordResetToken = undefined
+    user.passwordResetExpires = undefined
+    user.refreshToken = undefined
+    await user.save()
+    return res.status(200).json(new ApiResponse(200, {}, "Password reset successfully. Please log in."))
+})
+
+const changePassword = asyncHandler(async (req, res) => {
+    const { currentPassword, newPassword } = req.body
+
+    if (!currentPassword || !newPassword) {
+        throw new ApiError(400, "Current password and new password are required")
+    }
+
+    if (!isStrongPassword(newPassword)) {
+        throw new ApiError(400, "Password must be at least 8 characters and include uppercase, lowercase, and a number")
+    }
+
+    if (currentPassword === newPassword) {
+        throw new ApiError(400, "New password must be different from your current password")
+    }
+
+    const user = await User.findById(req.user._id)
+    if (!user) throw new ApiError(404, "User not found")
+
+    if (!(await user.isPasswordCorrect(currentPassword))) {
+        throw new ApiError(401, "Current password is incorrect")
+    }
+
+    user.password = newPassword
+    user.refreshToken = undefined
+    await user.save()
+
+    const options = getCookieOptions(req)
+    return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "Password changed successfully. Please log in again."))
+})
+
+export { becomeSeller, changePassword, forgotPassword, getCurrentUser, loginUser, logoutUser, refreshAccessToken, registerUser, resendVerificationEmail, resetPassword, verifyEmail }

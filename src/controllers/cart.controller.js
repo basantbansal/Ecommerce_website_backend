@@ -64,7 +64,7 @@ const addItemToCart = asyncHandler(async (req, res) => {
             }
         },
         {
-            new: true
+            returnDocument: "after"
         }
     )
 
