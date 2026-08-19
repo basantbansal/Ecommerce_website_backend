@@ -35,14 +35,15 @@ const sendVerificationEmail = async (user) => {
 // about multer , uploadOnCloudinart ->
 // Client → Multer (route) → saves to temp/ → controller gets local path → uploadOnCloudinary → Cloudinary → URL saved to DB
 
-const getCookieOptions = (req) => { // 
+const getCookieOptions = (req) => { 
     const isHttpsFrontend = req.headers.origin?.startsWith("https://")
     const isProduction = process.env.NODE_ENV === "production"
 
     return {
         httpOnly: true,
         secure: isProduction || isHttpsFrontend,
-        sameSite: isProduction || isHttpsFrontend ? "none" : "lax"
+        sameSite: isProduction || isHttpsFrontend ? "none" : "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days in milliseconds
     }
 }
 
