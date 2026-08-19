@@ -18,6 +18,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
     })
 
     if (error) {
+        console.error("Resend API Error:", error);
         throw new Error(error.message || "Unable to send email")
     }
 }
