@@ -1,5 +1,5 @@
 import {Router} from "express"
-import { becomeSeller, changePassword, forgotPassword, getCurrentUser, registerUser,loginUser,logoutUser, refreshAccessToken, resendVerificationEmail, resetPassword, verifyEmail } from "../controllers/user.controller.js"
+import { becomeSeller, changePassword, forgotPassword, getCurrentUser, googleLogin, registerUser,loginUser,logoutUser, refreshAccessToken, resendVerificationEmail, resetPassword, verifyEmail } from "../controllers/user.controller.js"
 import {upload} from "../middlewares/multer.middleware.js"
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
@@ -19,6 +19,7 @@ router.route("/register").post(
     )
 
 router.route("/login").post(loginUser)
+router.route("/google-login").post(googleLogin)
 router.route("/verify-email").post(verifyEmail)
 router.route("/resend-verification").post(resendVerificationEmail)
 router.route("/forgot-password").post(forgotPassword)

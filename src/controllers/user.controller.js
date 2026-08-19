@@ -6,6 +6,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken"
 import crypto from "crypto"
 import { sendEmail } from "../utils/email.js";
+import { OAuth2Client } from 'google-auth-library';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const isStrongPassword = (password) =>
@@ -404,4 +405,46 @@ const changePassword = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Password changed successfully. Please log in again."))
 })
 
-export { becomeSeller, changePassword, forgotPassword, getCurrentUser, loginUser, logoutUser, refreshAccessToken, registerUser, resendVerificationEmail, resetPassword, verifyEmail }
+const googleLogin = asyncHandler(async (req, res) => {
+    const { token } = req.body;
+    if (!token) throw new ApiError(400, "Google token is required");
+
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const ticket = await client.verifyIdToken({
+        idToken: token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    
+    const { email, name, picture } = ticket.getPayload();
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+        const randomPassword = crypto.randomBytes(16).toString("hex") + "A1!"; 
+        const baseUsername = email.split("@")[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+        const uniqueUsername = `${baseUsername}${crypto.randomBytes(4).toString("hex")}`;
+
+        user = await User.create({
+            fullName: name,
+            email: email,
+            username: uniqueUsername,
+            password: randomPassword, 
+            avatar: picture,
+            emailVerified: true 
+        });
+    }
+
+    const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(user._id);
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken");
+    const options = getCookieOptions(req);
+
+    return res
+        .status(200)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
+        .json(
+            new ApiResponse(200, { user: loggedInUser, accessToken, refreshToken }, "Google Login Successful")
+        );
+});
+
+export { becomeSeller, changePassword, forgotPassword, getCurrentUser, googleLogin, loginUser, logoutUser, refreshAccessToken, registerUser, resendVerificationEmail, resetPassword, verifyEmail }
