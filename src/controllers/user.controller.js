@@ -24,12 +24,27 @@ const sendVerificationEmail = async (user) => {
     const token = user.createEmailToken()
     await user.save({ validateBeforeSave: false })
     const url = `${frontendUrl()}/verify-email?token=${token}`
-    await sendEmail({
-        to: user.email,
-        subject: "Verify your Amazing Store email",
-        text: `Verify your email by opening this link: ${url}`,
-        html: `<p>Welcome to Amazing Store.</p><p><a href="${url}">Verify your email address</a></p><p>This link expires in 24 hours.</p>`
-    })
+    
+    console.log(`\n======================================================`)
+    console.log(`📧 [Development] Verification URL for ${user.email}:`)
+    console.log(`👉 ${url}`)
+    console.log(`======================================================\n`)
+
+    try {
+        await sendEmail({
+            to: user.email,
+            subject: "Verify your Amazing Store email",
+            text: `Verify your email by opening this link: ${url}`,
+            html: `<p>Welcome to Amazing Store.</p><p><a href="${url}">Verify your email address</a></p><p>This link expires in 24 hours.</p>`
+        })
+    } catch (error) {
+        console.error("Resend API Error:", error)
+        // In development, we don't want to break registration if Resend sandbox blocks the email
+        if (process.env.NODE_ENV === "production") {
+            throw error;
+        }
+        console.log("⚠️ Ignoring email sending failure in development mode. Use the link above to verify the account.");
+    }
 }
 
 // about multer , uploadOnCloudinart ->
@@ -99,13 +114,12 @@ const registerUser = asyncHandler(async (req, res) => {
         coverImageLocalPath = req.files.coverImage[0].path
     }
     
-
     if (!avatarLocalPath) {
         throw new ApiError(400, "Avatar file is required")
     }
 
     const avatar = await uploadOnCloudinary(avatarLocalPath)
-    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
+    const coverImage = coverImageLocalPath ? await uploadOnCloudinary(coverImageLocalPath) : null
 
     if (!avatar) {
         throw new ApiError(400, "Avatar file is required")
@@ -341,12 +355,22 @@ const forgotPassword = asyncHandler(async (req, res) => {
         const token = user.createPasswordResetToken()
         await user.save({ validateBeforeSave: false })
         const url = `${frontendUrl()}/reset-password?token=${token}`
-        await sendEmail({
-            to: user.email,
-            subject: "Reset your Amazing Store password",
-            text: `Reset your password by opening this link: ${url}`,
-            html: `<p>We received a request to reset your password.</p><p><a href="${url}">Reset your password</a></p><p>This link expires in 15 minutes.</p>`
-        })
+        
+        console.log(`\n======================================================`)
+        console.log(`🔑 [Development] Password Reset URL for ${user.email}:`)
+        console.log(`👉 ${url}`)
+        console.log(`======================================================\n`)
+
+        try {
+            await sendEmail({
+                to: user.email,
+                subject: "Reset your Amazing Store password",
+                text: `Reset your password by opening this link: ${url}`,
+                html: `<p>We received a request to reset your password.</p><p><a href="${url}">Reset your password</a></p><p>This link expires in 15 minutes.</p>`
+            })
+        } catch (error) {
+            console.error("Resend API Error (Reset Password):", error)
+        }
     }
     return res.status(200).json(new ApiResponse(200, {}, message))
 })
@@ -448,4 +472,32 @@ const googleLogin = asyncHandler(async (req, res) => {
         );
 });
 
-export { becomeSeller, changePassword, forgotPassword, getCurrentUser, googleLogin, loginUser, logoutUser, refreshAccessToken, registerUser, resendVerificationEmail, resetPassword, verifyEmail }
+const updateAccountDetails = asyncHandler(async (req, res) => {
+    const { fullName } = req.body;
+
+    if (!fullName || fullName.trim() === "") {
+        throw new ApiError(400, "Full name is required");
+    }
+
+    // By explicitly passing only fullName, we prevent mass assignment vulnerabilities
+    // where a user might try to update fields like email or role.
+    const user = await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set: {
+                fullName: fullName.trim()
+            }
+        },
+        { new: true, runValidators: true }
+    ).select("-password -refreshToken");
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, user, "Account details updated successfully"));
+});
+
+export { becomeSeller, changePassword, forgotPassword, getCurrentUser, googleLogin, loginUser, logoutUser, refreshAccessToken, registerUser, resendVerificationEmail, resetPassword, verifyEmail, updateAccountDetails }
