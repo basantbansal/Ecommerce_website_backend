@@ -162,11 +162,31 @@ const loginUser = asyncHandler(async (req, res) =>{
     //access and referesh token
     //send cookie
 
-    const {email, username, password, loginId} = req.body
+    const {email, username, password, loginId, turnstileToken} = req.body
     const identifier = (loginId || email || username || "").trim().toLowerCase()
 
     if (!identifier) {
         throw new ApiError(400, "username or email is required")
+    }
+
+    if (!turnstileToken) {
+        throw new ApiError(400, "Security check token is required")
+    }
+
+    // Verify Turnstile Token with Cloudflare
+    const formData = new URLSearchParams();
+    formData.append('secret', process.env.TURNSTILE_SECRET_KEY);
+    formData.append('response', turnstileToken);
+
+    const verifyRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        method: 'POST',
+        body: formData
+    });
+    
+    const verifyJson = await verifyRes.json();
+
+    if (!verifyJson.success) {
+        throw new ApiError(403, "Security check failed. Please refresh the page and try again.")
     }
     
     // Here is an alternative of above code based on logic discussed in video:

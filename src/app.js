@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import mongoose from "mongoose";
+import { rateLimit } from 'express-rate-limit';
 import userRoute from "./routes/user.route.js";
 import productRoute from "./routes/product.route.js";
 import cartRoute from "./routes/cart.route.js";
@@ -43,6 +44,20 @@ app.use(cookieParser());
 app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(express.static("public"));
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 100, // Limit each IP to 100 requests per window
+  standardHeaders: 'draft-7', 
+  legacyHeaders: false, 
+  message: {
+    success: false,
+    message: "Too many requests from this IP, please try again after 15 minutes"
+  }
+});
+
+// Apply rate limiter to all API routes
+app.use("/api", apiLimiter);
 
 app.get("/api/v1/health", (_, res) => {
   const databaseConnected = mongoose.connection.readyState === 1;
